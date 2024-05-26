@@ -2,6 +2,15 @@ import streamlit as st
 import pandas as pd
 import io
 
+# Inicializa os dados na sessão
+if "data" not in st.session_state:
+    st.session_state.data = pd.DataFrame(columns=[
+        "Paciente", "Dia da Semana", "Nome da Dieta", "Leito", "Data",
+        "Almoço", "Motivos no Almoço", "Jantar", "Motivos no Jantar"
+    ])
+if "submit_count" not in st.session_state:
+    st.session_state.submit_count = False
+
 def obter_dados_paciente():
     st.subheader("Dados do Paciente 🩺")
     paciente = st.text_input("Paciente:")
@@ -28,7 +37,6 @@ def mostrar_opcoes_ingesta(opcoes_ingesta, imagens_ingesta, refeicao):
     return selected_refeicao
 
 def obter_motivos(refeicao):
-   
     motivos = [
         "Enjoo ou Vômito",
         "Falta de Apetite",
@@ -54,18 +62,18 @@ def salvar_resultados(paciente, dia_da_semana, nome_da_dieta, leito, data, selec
     return df
 
 def main():
-    st.set_page_config(page_title="Check list", page_icon="🏥", layout='wide',initial_sidebar_state="expanded")
+    st.set_page_config(page_title="Check list", page_icon="🏥", layout='wide', initial_sidebar_state="expanded")
     # Título do aplicativo
     st.header("🍽 Avaliação da Ingestão Oral", divider='rainbow')
 
     paciente, dia_da_semana, nome_da_dieta, leito, data = obter_dados_paciente()
 
-    st.sidebar.header("Avaliação Pacientes clinicos",  divider='rainbow')
+    st.sidebar.header("Avaliação Pacientes clinicos", divider='rainbow')
     st.sidebar.image("paciente.JPG", use_column_width=True)
 
     # Avaliação da ingesta
     st.markdown("<h2 style='font-size:20px;'>Clique na opção que mais se aproxima da satisfação da refeição:</h2>", unsafe_allow_html=True)
-    st.header("",divider='rainbow')
+    st.header("", divider='rainbow')
 
     opcoes_ingesta = [
         "Tudo no almoço",
@@ -81,8 +89,6 @@ def main():
         "Metade no jantar",
         "Menos que a metade no jantar",
         "Nada no jantar"
-
-
     ]
 
     # Imagens correspondentes às opções
@@ -97,7 +103,7 @@ def main():
     selected_almoco = mostrar_opcoes_ingesta(opcoes_ingesta, imagens_ingesta, "Almoço")
     motivos_almoco = obter_motivos("Almoço")
 
-    st.header("",divider='rainbow')
+    st.header("", divider='rainbow')
 
     selected_jantar = mostrar_opcoes_ingesta(opcoes_ingesta1, imagens_ingesta, "Jantar")
     motivos_jantar = obter_motivos("Jantar")
@@ -105,34 +111,37 @@ def main():
     # Botão para submissão
     if st.button("Submeter Avaliação"):
         st.success("Avaliação submetida com sucesso!")
-        df = salvar_resultados(paciente, dia_da_semana, nome_da_dieta, leito, data, selected_almoco, selected_jantar, motivos_almoco, motivos_jantar)
-
-        # Se existir a planilha anterior, leia ela
-        try:
-            existing_df = pd.read_excel("avaliacao_ingesta_oral.xlsx")
-            df = pd.concat([existing_df, df], ignore_index=True)
-        except FileNotFoundError:
-            pass
+        novo_dado = salvar_resultados(paciente, dia_da_semana, nome_da_dieta, leito, data, selected_almoco, selected_jantar, motivos_almoco, motivos_jantar)
+        
+        # Adicionar os novos dados ao DataFrame na sessão
+        st.session_state.data = pd.concat([st.session_state.data, novo_dado], ignore_index=True)
 
         st.write("### Resumo da Avaliação")
-        st.write(df)
+        st.write(st.session_state.data)
+        
+        # Incrementa o contador de submissões
+        st.session_state.submit_count = True
 
-        # Salvar os dados na planilha
-        with pd.ExcelWriter("avaliacao_ingesta_oral.xlsx") as writer:
-            df.to_excel(writer, index=False, sheet_name='Avaliação')
-
-        # Botão para download do Excel
+    # Exibir botão de download somente se houver dados
+    if st.session_state.submit_count:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Avaliação')
+            st.session_state.data.to_excel(writer, index=False, sheet_name='Avaliação')
         output.seek(0)
-        
-        st.download_button(
+
+        if st.download_button(
             label="Baixar Resultados em Excel",
             data=output,
             file_name="avaliacao_ingesta_oral.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        ):
+            # Limpar os dados da sessão após o download
+            st.session_state.data = pd.DataFrame(columns=[
+                "Paciente", "Dia da Semana", "Nome da Dieta", "Leito", "Data",
+                "Almoço", "Motivos no Almoço", "Jantar", "Motivos no Jantar"
+            ])
+            st.session_state.submit_count = False
 
 if __name__ == "__main__":
     main()
+
